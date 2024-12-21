@@ -1,0 +1,24 @@
+# Build directory
+build/
+
+# Qt-specific
+*.moc
+moc_*.cpp
+moc_*.h
+ui_*.h
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Executables
+*.exe
+*.out
+*.app
+
+# IDE-specific files (optional, depending on your setup)
+.vscode/
+.idea/
+*.user

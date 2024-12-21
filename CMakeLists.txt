@@ -7,5 +7,5 @@ set(CMAKE_AUTOMOC ON)
 
 find_package(Qt5Widgets REQUIRED)
 
-add_executable(Launcher main.cpp)
+add_executable(Launcher main.cpp launchmath.cpp units.cpp)
 target_link_libraries(Launcher Qt5::Widgets)

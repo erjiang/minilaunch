@@ -6,6 +6,7 @@
 #include <QScreen>
 #include <QDebug>
 #include <QLabel>
+#include <QElapsedTimer>
 #include "launchmath.h"
 #include "units.h"
 
@@ -107,9 +108,22 @@ private:
 
 int main(int argc, char *argv[])
 {
+    QElapsedTimer timer;
+    timer.start();
+
+    // Optimize startup
+    qputenv("QT_ENABLE_GLYPH_CACHE_WORKAROUND", "1");
+    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps, false);
+    QApplication::setStartDragDistance(0);
+
     QApplication app(argc, argv);
-    Launcher launcher;
-    launcher.show();
+
+    // Load window after app is initialized
+    Launcher* launcher = new Launcher();  // Using heap allocation
+    launcher->show();
+
+    qDebug() << "Startup time:" << timer.elapsed() << "ms";
+
     return app.exec();
 }
 

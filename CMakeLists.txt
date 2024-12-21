@@ -20,5 +20,15 @@ target_link_libraries(units_test
     Qt5::Test
 )
 
+add_executable(launchmath_test
+    tests/launchmath_test.cpp
+    launchmath.cpp
+)
+target_link_libraries(launchmath_test
+    Qt5::Core
+    Qt5::Test
+)
+
 enable_testing()
 add_test(NAME units_test COMMAND units_test)
+add_test(NAME launchmath_test COMMAND launchmath_test)

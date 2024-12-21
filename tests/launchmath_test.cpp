@@ -1,5 +1,5 @@
 #include <QtTest>
-#include "launchmath.h"
+#include "../launchmath.h"
 
 class LaunchMathTest : public QObject
 {

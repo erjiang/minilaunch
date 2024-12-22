@@ -42,6 +42,14 @@ public:
         XSelectInput(display, window, ExposureMask | KeyPressMask);
         XStoreName(display, window, "Launch");
 
+        // Setup graphics context first
+        gc = XCreateGC(display, window, 0, nullptr);
+        XSetForeground(display, gc, BlackPixel(display, screen));
+
+        // Then load and set the larger font
+        Font font = XLoadFont(display, "-*-*-*-*-*-*-20-*-*-*-*-*-*-*");
+        XSetFont(display, gc, font);
+
         // Center window
         int x = (DisplayWidth(display, screen) - 600) / 2;
         int y = (DisplayHeight(display, screen) - 40) / 2;
@@ -51,10 +59,6 @@ public:
         im = XOpenIM(display, nullptr, nullptr, nullptr);
         ic = XCreateIC(im, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
                       XNClientWindow, window, XNFocusWindow, window, nullptr);
-
-        // Setup graphics context
-        gc = XCreateGC(display, window, 0, nullptr);
-        XSetForeground(display, gc, BlackPixel(display, screen));
 
         // Show window
         XMapWindow(display, window);
@@ -133,7 +137,8 @@ private:
         std::string input(text, text_len);
 
         // Check if it's a math expression
-        if (std::any_of(text, text + text_len,
+        if ((std::isdigit(text[0]) || text[0] == '(') &&
+            std::any_of(text, text + text_len,
             [](char c) { return c == '+' || c == '-' || c == '*' || c == '/' || c == '^' || c == '(' || c == ')'; })) {
 
             // More thorough validation of the expression
@@ -160,13 +165,11 @@ private:
 
             if (!valid) return;
 
-            try {
-                double result = evaluateExpression(input);
-                result_text = " = " + std::to_string(result);
+            auto result = evaluateExpression(input);
+            if (result.has_value()) {
+                result_text = " = " + std::to_string(*result);
                 has_result = true;
-                std::cerr << "Math result: " << result << std::endl;
-            } catch (...) {
-                // If math evaluation fails, continue to units check
+                std::cerr << "Math result: " << *result << std::endl;
             }
         }
 
@@ -199,13 +202,14 @@ private:
 
         // If we have a result, draw it in blue after the input
         if (has_result) {
+            // Get the width of the input text
+            int input_width = XTextWidth(XQueryFont(display, XGContextFromGC(gc)), text, text_len);
 
             // Set color to blue (RGB: 0, 0, 255)
             XSetForeground(display, gc, 0x0000FF);
 
-            // Draw result after the input text
-            // Assuming 8 pixels per character for positioning
-            int result_x = 10 + (text_len * 8);
+            // Draw result after the input text with some padding
+            int result_x = 10 + input_width + 10;  // 10px padding between input and result
             XDrawString(display, window, gc, result_x, 25,
                        result_text.c_str(), result_text.length());
 
@@ -219,14 +223,16 @@ private:
         if (std::any_of(text, text + text_len,
             [](char c) { return c == '+' || c == '-' || c == '*' || c == '/' || c == '^' || c == '(' || c == ')'; })) {
             try {
-                double result = evaluateExpression(std::string(text, text_len));
-                // Convert result to string and display it
-                std::string resultStr = std::to_string(result);
-                text_len = std::min(resultStr.length(), sizeof(text) - 1);
-                std::copy(resultStr.begin(), resultStr.begin() + text_len, text);
-                text[text_len] = 0;
-                redraw();
-                return;
+                auto result = evaluateExpression(std::string(text, text_len));
+                if (result.has_value()) {
+                    // Convert result to string and display it
+                    std::string resultStr = std::to_string(*result);
+                    text_len = std::min(resultStr.length(), sizeof(text) - 1);
+                    std::copy(resultStr.begin(), resultStr.begin() + text_len, text);
+                    text[text_len] = 0;
+                    redraw();
+                    return;
+                }
             } catch (...) {
                 // If math evaluation fails, treat as normal command
             }

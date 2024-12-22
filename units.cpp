@@ -5,6 +5,7 @@
 #include <memory>
 #include <iostream>
 #include <sstream>
+#include <optional>
 
 bool isUnitsConversion(const std::string& text) {
     // Check for " in " substring (case insensitive)
@@ -29,7 +30,7 @@ bool isUnitsConversion(const std::string& text) {
     return std::regex_match(leftPart, numberPattern);
 }
 
-double convertUnits(const std::string& fromUnit, const std::string& toUnit) {
+std::optional<double> convertUnits(const std::string& fromUnit, const std::string& toUnit) {
     std::array<char, 128> buffer;
     std::string result;
 
@@ -40,7 +41,7 @@ double convertUnits(const std::string& fromUnit, const std::string& toUnit) {
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
     if (!pipe) {
         std::cerr << "Failed to run units command" << std::endl;
-        return 0.0;
+        return std::nullopt;
     }
 
     // Read the output
@@ -52,16 +53,17 @@ double convertUnits(const std::string& fromUnit, const std::string& toUnit) {
     std::string firstLine = result.substr(0, result.find('\n'));
 
     // Check if conversion was successful
-    if (firstLine.empty() || firstLine[0] != '*') {
+    if (firstLine.empty() || firstLine.find('*') == std::string::npos) {
         std::cerr << "Unexpected output from units command: " << firstLine << std::endl;
-        return 0.0;
+        return std::nullopt;
     }
 
-    // Parse the number
+    // Parse the number (skip whitespace and *)
     try {
-        return std::stod(firstLine.substr(1));
+        size_t startPos = firstLine.find('*') + 1;
+        return std::stod(firstLine.substr(startPos));
     } catch (const std::exception& e) {
         std::cerr << "Failed to parse units conversion result: " << e.what() << std::endl;
-        return 0.0;
+        return std::nullopt;
     }
 }

@@ -2,6 +2,7 @@
 #define UNITS_H
 
 #include <string>
+#include <optional>
 
 /**
  * @brief Checks if a given text string represents a valid units conversion query
@@ -16,6 +17,6 @@ bool isUnitsConversion(const std::string& text);
  * @param toUnit The target unit (e.g., "lbs")
  * @return The converted value, or 0.0 if conversion fails
  */
-double convertUnits(const std::string& fromUnit, const std::string& toUnit);
+std::optional<double> convertUnits(const std::string& fromUnit, const std::string& toUnit);
 
 #endif // UNITS_H

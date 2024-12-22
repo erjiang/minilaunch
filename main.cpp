@@ -6,6 +6,9 @@
 #include <unistd.h>
 #include <chrono>
 #include <iostream>
+#include <algorithm>
+#include "launchmath.h"
+#include "units.h"
 
 class MinimalLauncher {
 private:
@@ -18,6 +21,8 @@ private:
     char text[256] = {0};
     int text_len = 0;
     std::chrono::steady_clock::time_point start_time;
+    std::string result_text;
+    bool has_result = false;
 
 public:
     MinimalLauncher() {
@@ -80,6 +85,14 @@ public:
 
                     int len = XmbLookupString(ic, &event.xkey, buf, 20, &key, &status);
 
+                    // Check for Ctrl+A to clear input
+                    if ((event.xkey.state & ControlMask) && (key == XK_a || key == XK_A)) {
+                        text_len = 0;
+                        text[0] = 0;
+                        redraw();
+                        break;
+                    }
+
                     if (key == XK_Return) {
                         if (text_len > 0) {
                             execute_command();
@@ -109,12 +122,117 @@ public:
     }
 
 private:
+    void checkForResult() {
+        has_result = false;
+        result_text.clear();
+
+        if (text_len <= 0 || text[0] == '\0') {
+            return;
+        }
+
+        std::string input(text, text_len);
+
+        // Check if it's a math expression
+        if (std::any_of(text, text + text_len,
+            [](char c) { return c == '+' || c == '-' || c == '*' || c == '/' || c == '^' || c == '(' || c == ')'; })) {
+
+            // More thorough validation of the expression
+            bool valid = true;
+
+            // Check for incomplete expressions
+            if (input.back() == '+' || input.back() == '-' ||
+                input.back() == '*' || input.back() == '/' ||
+                input.back() == '^') {
+                return;
+            }
+
+            // Check for unmatched parentheses
+            int parentheses = 0;
+            for (char c : input) {
+                if (c == '(') parentheses++;
+                if (c == ')') parentheses--;
+                if (parentheses < 0) {
+                    valid = false;
+                    break;
+                }
+            }
+            if (parentheses != 0) valid = false;
+
+            if (!valid) return;
+
+            try {
+                double result = evaluateExpression(input);
+                result_text = " = " + std::to_string(result);
+                has_result = true;
+                std::cerr << "Math result: " << result << std::endl;
+            } catch (...) {
+                // If math evaluation fails, continue to units check
+            }
+        }
+
+        // Then check if it's a units conversion
+        if (isUnitsConversion(input)) {
+            size_t pos = input.find(" in ");
+            if (pos != std::string::npos) {
+                std::string fromUnit = input.substr(0, pos);
+                std::string toUnit = input.substr(pos + 4);
+                try {
+                    auto result = convertUnits(fromUnit, toUnit);
+                    if (result.has_value()) {
+                        result_text = " = " + std::to_string(*result);
+                        has_result = true;
+                    }
+                } catch (...) {
+                    // Conversion failed
+                }
+            }
+        }
+    }
+
     void redraw() {
+        checkForResult();
         XClearWindow(display, window);
+
+        // Draw the main input text in black
+        XSetForeground(display, gc, BlackPixel(display, screen));
         XDrawString(display, window, gc, 10, 25, text, text_len);
+
+        // If we have a result, draw it in blue after the input
+        if (has_result) {
+
+            // Set color to blue (RGB: 0, 0, 255)
+            XSetForeground(display, gc, 0x0000FF);
+
+            // Draw result after the input text
+            // Assuming 8 pixels per character for positioning
+            int result_x = 10 + (text_len * 8);
+            XDrawString(display, window, gc, result_x, 25,
+                       result_text.c_str(), result_text.length());
+
+            // Reset color back to black
+            XSetForeground(display, gc, BlackPixel(display, screen));
+        }
     }
 
     void execute_command() {
+        // First check if it's a math expression
+        if (std::any_of(text, text + text_len,
+            [](char c) { return c == '+' || c == '-' || c == '*' || c == '/' || c == '^' || c == '(' || c == ')'; })) {
+            try {
+                double result = evaluateExpression(std::string(text, text_len));
+                // Convert result to string and display it
+                std::string resultStr = std::to_string(result);
+                text_len = std::min(resultStr.length(), sizeof(text) - 1);
+                std::copy(resultStr.begin(), resultStr.begin() + text_len, text);
+                text[text_len] = 0;
+                redraw();
+                return;
+            } catch (...) {
+                // If math evaluation fails, treat as normal command
+            }
+        }
+
+        // If not a math expression or math failed, execute as command
         if (fork() == 0) {
             setsid();
             execl("/bin/sh", "sh", "-c", text, nullptr);

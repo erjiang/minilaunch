@@ -2,11 +2,17 @@ cmake_minimum_required(VERSION 3.5)
 
 project(Launcher)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Add optimization flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto")  # Enable Link Time Optimization
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Bsymbolic-functions")  # Enable symbol resolution optimization
+# Add build type specific flags
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -flto")
+
+# Only apply optimization flags in Release mode
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Bsymbolic-functions")
+endif()
 
 # For MSVC (Windows), we need different flags
 if(MSVC)

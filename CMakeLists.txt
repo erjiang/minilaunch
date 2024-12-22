@@ -5,6 +5,16 @@ project(Launcher)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_AUTOMOC ON)
 
+# Add optimization flags
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto")  # Enable Link Time Optimization
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Bsymbolic-functions")  # Enable symbol resolution optimization
+
+# For MSVC (Windows), we need different flags
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GL")  # Enable whole program optimization
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")  # Enable link-time code generation
+endif()
+
 find_package(Qt5Widgets REQUIRED)
 find_package(Qt5Test REQUIRED)
 

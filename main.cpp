@@ -1,130 +1,130 @@
-#include <QApplication>
-#include <QWidget>
-#include <QVBoxLayout>
-#include <QLineEdit>
-#include <QProcess>
-#include <QScreen>
-#include <QDebug>
-#include <QLabel>
-#include <QElapsedTimer>
-#include "launchmath.h"
-#include "units.h"
+#include <X11/Xlib.h>
+#include <X11/keysym.h>
+#include <X11/Xutil.h>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
+#include <chrono>
+#include <iostream>
 
-class Launcher : public QWidget
-{
-    Q_OBJECT
+class MinimalLauncher {
+private:
+    Display* display;
+    Window window;
+    XIC ic;
+    XIM im;
+    GC gc;
+    int screen;
+    char text[256] = {0};
+    int text_len = 0;
+    std::chrono::steady_clock::time_point start_time;
 
 public:
-    Launcher(QWidget *parent = nullptr) : QWidget(parent)
-    {
-        initUI();
+    MinimalLauncher() {
+        start_time = std::chrono::steady_clock::now();
+
+        display = XOpenDisplay(nullptr);
+        screen = DefaultScreen(display);
+
+        // Create window
+        window = XCreateSimpleWindow(
+            display, RootWindow(display, screen),
+            0, 0, 600, 40,  // x, y, width, height
+            1, BlackPixel(display, screen),
+            WhitePixel(display, screen));
+
+        // Set window properties
+        XSelectInput(display, window, ExposureMask | KeyPressMask);
+        XStoreName(display, window, "Launch");
+
+        // Center window
+        int x = (DisplayWidth(display, screen) - 600) / 2;
+        int y = (DisplayHeight(display, screen) - 40) / 2;
+        XMoveWindow(display, window, x, y);
+
+        // Setup input
+        im = XOpenIM(display, nullptr, nullptr, nullptr);
+        ic = XCreateIC(im, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+                      XNClientWindow, window, XNFocusWindow, window, nullptr);
+
+        // Setup graphics context
+        gc = XCreateGC(display, window, 0, nullptr);
+        XSetForeground(display, gc, BlackPixel(display, screen));
+
+        // Show window
+        XMapWindow(display, window);
+
+        auto end_time = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            end_time - start_time).count();
+        std::cerr << "UI ready in " << duration << "ms\n";
+    }
+
+    void run() {
+        XEvent event;
+        KeySym key;
+        Status status;
+        char buf[20];
+
+        while (true) {
+            XNextEvent(display, &event);
+
+            switch (event.type) {
+                case Expose:
+                    redraw();
+                    break;
+
+                case KeyPress:
+                    if (XFilterEvent(&event, None))
+                        break;
+
+                    int len = XmbLookupString(ic, &event.xkey, buf, 20, &key, &status);
+
+                    if (key == XK_Return) {
+                        if (text_len > 0) {
+                            execute_command();
+                            return;
+                        }
+                    } else if (key == XK_Escape) {
+                        return;
+                    } else if (key == XK_BackSpace) {
+                        if (text_len > 0) text_len--;
+                        redraw();
+                    } else if (len == 1 && text_len < 255) {
+                        text[text_len++] = buf[0];
+                        text[text_len] = 0;
+                        redraw();
+                    }
+                    break;
+            }
+        }
+    }
+
+    ~MinimalLauncher() {
+        XDestroyIC(ic);
+        XCloseIM(im);
+        XFreeGC(display, gc);
+        XDestroyWindow(display, window);
+        XCloseDisplay(display);
     }
 
 private:
-    QLineEdit *entry;
-    QLabel *statusLabel;
-
-    void initUI()
-    {
-        setWindowTitle("Launcher");
-        setFixedSize(600, 80);
-
-        QVBoxLayout *layout = new QVBoxLayout(this);
-        layout->setAlignment(Qt::AlignTop);
-
-        entry = new QLineEdit(this);
-        entry->setPlaceholderText("Enter command or math expression");
-        connect(entry, &QLineEdit::returnPressed, this, &Launcher::runCommand);
-        connect(entry, &QLineEdit::textChanged, this, &Launcher::evaluateMath);
-        layout->addWidget(entry);
-
-        statusLabel = new QLabel(this);
-        statusLabel->setText("Ready");
-        statusLabel->hide();
-        layout->addWidget(statusLabel);
-
-        setLayout(layout);
-
-        // Center the window on the screen
-        QRect screenGeometry = QApplication::primaryScreen()->availableGeometry();
-        int x = (screenGeometry.width() - width()) / 2;
-        int y = (screenGeometry.height() - height()) / 2;
-        move(x, y);
+    void redraw() {
+        XClearWindow(display, window);
+        XDrawString(display, window, gc, 10, 25, text, text_len);
     }
 
-    void runCommand()
-    {
-        QString cmd = entry->text().trimmed();
-        if (!cmd.isEmpty())
-        {
-            QProcess *process = new QProcess(nullptr);
-            process->start(cmd, QStringList());
-            if (!process->waitForStarted())
-            {
-                qDebug() << "Failed to run command:" << process->errorString();
-                delete process;
-            }
-        }
-        close();
-    }
-
-    void evaluateMath(const QString& text)
-    {
-        if (text.isEmpty()) {
-            statusLabel->hide();
-            return;
-        }
-
-        // Check for units conversion
-        if (isUnitsConversion(text)) {
-            QStringList parts = text.split(" in ", Qt::SkipEmptyParts);
-            QString fromUnit = parts.first().trimmed();
-            QString toUnit = parts.last().trimmed();
-
-            double conversionResult = convertUnits(fromUnit, toUnit);
-            if (conversionResult != 0.0) {
-                statusLabel->setText(QString::number(conversionResult));
-                statusLabel->show();
-                return;
-            }
-        }
-
-        // Existing math evaluation logic
-        bool hasOperator = text.contains(QRegExp("[+\\-*/^()]"));
-        if (!hasOperator && !text.contains('.')) {
-            statusLabel->hide();
-            return;
-        }
-
-        double result = evaluateExpression(text);
-        if (result != 0 || text == "0") {
-            statusLabel->setText(QString::number(result));
-            statusLabel->show();
-        } else {
-            statusLabel->hide();
+    void execute_command() {
+        if (fork() == 0) {
+            setsid();
+            execl("/bin/sh", "sh", "-c", text, nullptr);
+            exit(0);
         }
     }
 };
 
-int main(int argc, char *argv[])
-{
-    QElapsedTimer timer;
-    timer.start();
-
-    // Optimize startup
-    qputenv("QT_ENABLE_GLYPH_CACHE_WORKAROUND", "1");
-    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps, false);
-    QApplication::setStartDragDistance(0);
-
-    QApplication app(argc, argv);
-
-    // Load window after app is initialized
-    Launcher* launcher = new Launcher();  // Using heap allocation
-    launcher->show();
-
-    qDebug() << "Startup time:" << timer.elapsed() << "ms";
-
-    return app.exec();
+int main() {
+    MinimalLauncher launcher;
+    launcher.run();
+    return 0;
 }
-
-#include "main.moc"

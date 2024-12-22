@@ -1,14 +1,14 @@
 #ifndef LAUNCHMATH_H
 #define LAUNCHMATH_H
 
-#include <QString>
+#include <string>
 
 // Helper function declarations
-bool isOperator(QChar c);
-int precedence(QChar op);
-double applyOp(double a, double b, QChar op);
+bool isOperator(char c);
+int precedence(char op);
+double applyOp(double a, double b, char op);
 
 // Main expression evaluation function
-double evaluateExpression(const QString& expr);
+double evaluateExpression(const std::string& expr);
 
 #endif // LAUNCHMATH_H

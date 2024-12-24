@@ -7,6 +7,8 @@
 #include <chrono>
 #include <iostream>
 #include <algorithm>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "launchmath.h"
 #include "units.h"
 
@@ -218,27 +220,53 @@ private:
         }
     }
 
+    bool is_directory(const std::string& path) {
+        std::string check_path = path;
+        bool force_dir = false;
+
+        // Check if it ends with a slash
+        if (path.length() > 0 && path.back() == '/') {
+            force_dir = true;
+            check_path.pop_back();
+        }
+
+        if (access(check_path.c_str(), F_OK) == 0) {  // Path exists
+            struct stat path_stat;
+            stat(check_path.c_str(), &path_stat);
+            return force_dir || S_ISDIR(path_stat.st_mode);
+        }
+        return false;
+    }
+
     void execute_command() {
-        // First check if it's a math expression
-        if (std::any_of(text, text + text_len,
-            [](char c) { return c == '+' || c == '-' || c == '*' || c == '/' || c == '^' || c == '(' || c == ')'; })) {
-            try {
-                auto result = evaluateExpression(std::string(text, text_len));
-                if (result.has_value()) {
-                    // Convert result to string and display it
-                    std::string resultStr = std::to_string(*result);
-                    text_len = std::min(resultStr.length(), sizeof(text) - 1);
-                    std::copy(resultStr.begin(), resultStr.begin() + text_len, text);
-                    text[text_len] = 0;
-                    redraw();
-                    return;
-                }
-            } catch (...) {
-                // If math evaluation fails, treat as normal command
+
+        std::string command(text, text_len);
+
+        // Check if the command contains unescaped spaces
+        bool has_space = false;
+        bool escaped = false;
+        for (char c : command) {
+            if (c == '\\') {
+                escaped = !escaped;
+            } else if (c == ' ' && !escaped) {
+                has_space = true;
+                break;
+            } else {
+                escaped = false;
             }
         }
 
-        // If not a math expression or math failed, execute as command
+        // If it's a single word (no spaces), check if it's a directory
+        if (!has_space && is_directory(command)) {
+            if (fork() == 0) {
+                setsid();
+                execl("/usr/bin/xdg-open", "xdg-open", command.c_str(), nullptr);
+                exit(0);
+            }
+            return;
+        }
+
+        // If not a directory or has spaces, execute as command
         if (fork() == 0) {
             setsid();
             execl("/bin/sh", "sh", "-c", text, nullptr);

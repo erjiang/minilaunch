@@ -4,6 +4,8 @@ A lightweight X11-based application launcher for Linux, written in C++. This min
 
 It's intended to launch very quickly (in a couple ms, usually) and have a small file size.
 
+![minilaunch screenshot](https://github.com/user-attachments/assets/471c7785-a981-4954-bcba-1595e5364c49)
+
 ---
 
 ## Features

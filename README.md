@@ -79,7 +79,7 @@ cd minilaunch
 ### Project Structure
 
 - **Source Files**:
-  - `minimal_launcher.cpp`: Main application logic.
+  - `main.cpp`: Main application logic.
   - `launchmath.cpp` and `units.cpp`: Math and unit conversion utilities.
 
 ---

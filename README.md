@@ -51,7 +51,7 @@ cd minilaunch
    cmake ..
    make
    ```
-3. The compiled binary will be available as `Launcher` in the `build` directory.
+3. The compiled binary will be available as `minilaunch` in the `build` directory.
 
 ---
 
